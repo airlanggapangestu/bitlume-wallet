@@ -1,0 +1,26 @@
+{
+  "canisters": {
+    "bitlume-wallet-backend": {
+      "main": "src/bitlume-wallet-backend/main.mo",
+      "type": "motoko"
+    },
+    "bitlume-wallet-frontend": {
+      "dependencies": [
+        "bitlume-wallet-backend"
+      ],
+      "source": [
+        "src/bitlume-wallet-frontend/dist"
+      ],
+      "type": "assets",
+      "workspace": "bitlume-wallet-frontend"
+    }
+  },
+  "defaults": {
+    "build": {
+      "args": "",
+      "packtool": ""
+    }
+  },
+  "output_env_file": ".env",
+  "version": 1
+}

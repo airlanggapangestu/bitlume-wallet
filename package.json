@@ -13,6 +13,6 @@
   },
   "type": "module",
   "workspaces": [
-    "src/bitlume-wallet-frontend"
+    "src/frontend"
   ]
 }

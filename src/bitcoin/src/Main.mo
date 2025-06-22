@@ -67,6 +67,15 @@ actor class BasicBitcoin(network : Types.Network) {
     await P2pkh.get_address(ecdsa_canister_actor, NETWORK, KEY_NAME, p2pkhDerivationPath());
   };
 
+  public func get_p2pkh_address_for(principal : Principal) : async BitcoinAddress {
+    await P2pkh.get_address(
+      ecdsa_canister_actor,
+      NETWORK,
+      KEY_NAME,
+      derivationPathForUser(principal, "p2pkh")
+    );
+  };
+
   /// Sends the given amount of bitcoin from this canister to the given address.
   /// Returns the transaction ID.
   public func send_from_p2pkh_address(request : SendRequest) : async TransactionId {
@@ -111,4 +120,10 @@ actor class BasicBitcoin(network : Types.Network) {
   func derivationPathWithSuffix(suffix : Blob) : [[Nat8]] {
     Array.flatten([DERIVATION_PATH, [Blob.toArray(suffix)]]);
   };
+
+  func derivationPathForUser(principal : Principal, suffix : Text) : [[Nat8]] {
+    let user_bytes = Blob.toArray(Principal.toBlob(principal));
+    let suffix_bytes = Blob.toArray(Text.encodeUtf8(suffix));
+    [user_bytes, suffix_bytes];
+  }
 };

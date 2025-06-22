@@ -3,6 +3,7 @@ import { AuthClient } from "@dfinity/auth-client";
 import { Actor } from "@dfinity/agent";
 import { getInternetIdentityNetwork } from "@/core/lib/canisterUtils";
 import { backend } from "declarations/backend";
+import { bitcoin } from "declarations/bitcoin";
 
 const AuthContext = createContext();
 
@@ -24,22 +25,6 @@ export const AuthProvider = ({ children }) => {
     initAuth();
   }, []);
 
-  const parseMotokoResponse = (response) => {
-    // Remove the outer curly braces and split by semicolon
-    const content = response.slice(1, -1).trim();
-    const parts = content.split(";").map((part) => part.trim());
-
-    const result = {};
-    parts.forEach((part) => {
-      const [key, value] = part.split("=").map((item) => item.trim());
-      // Remove quotes if present
-      const cleanValue = value.replace(/^"|"$/g, "");
-      result[key] = cleanValue;
-    });
-
-    return result;
-  };
-
   const updateIdentity = async (client) => {
     try {
       const authenticated = await client.isAuthenticated();
@@ -48,16 +33,19 @@ export const AuthProvider = ({ children }) => {
         const newIdentity = client.getIdentity();
         setIdentity(newIdentity);
         Actor.agentOf(backend).replaceIdentity(newIdentity);
-        // const userResponse = await backend.getProfile();
+        Actor.agentOf(bitcoin).replaceIdentity(newIdentity);
 
+        setIsLoading(true);
+        const userResponse = await backend.get_profile();
         setIsLoading(false);
-        setIsAuthenticated(true);
 
-        // if ("Ok" in userResponse) {
-        //   const parsedUser = parseMotokoResponse(userResponse.Ok);
-        //   setUser(parsedUser);
-        //   setIsAuthenticated(true);
-        // }
+        if ("Ok" in userResponse) {
+          setUser(userResponse.Ok);
+          setIsAuthenticated(true);
+        } else {
+          setIsAuthenticated(true);
+          setUser(null);
+        }
       } else {
         setIsLoading(false);
       }
@@ -83,28 +71,29 @@ export const AuthProvider = ({ children }) => {
   const handleLoginSuccess = async (newIdentity) => {
     setIdentity(newIdentity);
     Actor.agentOf(backend).replaceIdentity(newIdentity);
+    Actor.agentOf(bitcoin).replaceIdentity(newIdentity);
 
-    // const userResponse = await backend.getProfile();
-
+    setIsLoading(true);
+    const userResponse = await backend.get_profile();
     setIsLoading(false);
-    setIsAuthenticated(true);
 
-    window.location.href = "/dashboard";
-
-    // if ("Ok" in userResponse) {
-    //   const parsedUser = parseMotokoResponse(userResponse.Ok);
-    // setIsAuthenticated(true);
-    //   setUser(parsedUser);
-    //   window.location.reload();
-    // } else if ("Err" in userResponse) {
-    // }
+    if ("Ok" in userResponse) {
+      setIsAuthenticated(true);
+      setUser(userResponse.Ok);
+      window.location.href = "/dashboard";
+    } else if ("Err" in userResponse) {
+      console.error("Error getting profile:", userResponse.Err);
+      setIsAuthenticated(true);
+      setUser(null);
+      window.location.href = "/dashboard";
+    }
   };
 
   const logout = async () => {
     await authClient.logout();
     setUser(null);
     setIsAuthenticated(false);
-    document.location.reload();
+    document.location.href = "/";
   };
 
   if (isLoading) {

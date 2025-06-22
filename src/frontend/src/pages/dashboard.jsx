@@ -1,11 +1,17 @@
 "use client";
 
 import { Button } from "@/core/components/ui/button";
-import { Wallet, Activity, Compass, Gift, Settings, Search, ArrowUpRight, ArrowDownLeft, RefreshCw, CreditCard, Bitcoin, Zap, Globe, DollarSign, TrendingUp, Copy, X, QrCode, CheckCircle2, AlertTriangle, Shield, Loader2, Send, Menu } from "lucide-react";
+import { Wallet, Activity, Compass, Gift, Settings, Search, ArrowUpRight, ArrowDownLeft, RefreshCw, CreditCard, Bitcoin, Zap, Globe, DollarSign, TrendingUp, Copy, X, QrCode, CheckCircle2, AlertTriangle, Shield, Loader2, Send, Menu, LogOut } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
+import { useAuth } from "@/core/providers/auth-provider";
+import { bitcoin } from "declarations/bitcoin";
+import { backend } from "declarations/backend";
+import LogoutModal from "./components/modals/logout-modal";
 
 export default function DashboardAssets() {
+  const { user, identity, logout } = useAuth();
+
   const [activeTab, setActiveTab] = useState("assets");
   const [showReceiveModal, setShowReceiveModal] = useState(false);
   const [showSendModal, setShowSendModal] = useState(false);
@@ -13,20 +19,16 @@ export default function DashboardAssets() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
-  // Send modal states
   const [sendAddress, setSendAddress] = useState("");
   const [sendAmount, setSendAmount] = useState("");
   const [analysisState, setAnalysisState] = useState("idle"); // idle, analyzing, safe, unsafe
   const [sendState, setSendState] = useState("idle"); // idle, sending, sent
   const [analysisResult, setAnalysisResult] = useState(null);
+  const [bitcoinAddress, setBitcoinAddress] = useState(null);
+  const [logoutModal, setLogoutModal] = useState(false);
 
-  const [showLoadingModal, setShowLoadingModal] = useState(true);
-  const [loadingProgress, setLoadingProgress] = useState(0);
-  const [loadingStep, setLoadingStep] = useState("Initializing wallet...");
+  const [showLoadingModal, setShowLoadingModal] = useState(false);
 
-  const bitcoinAddress = "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh";
-
-  // Check if mobile on mount and resize
   useEffect(() => {
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 768);
@@ -42,57 +44,19 @@ export default function DashboardAssets() {
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
-  // Simulate public address generation on first load
   useEffect(() => {
-    if (showLoadingModal) {
-      const steps = [
-        { step: "Initializing wallet...", duration: 1000 },
-        { step: "Generating cryptographic keys...", duration: 1500 },
-        { step: "Creating Bitcoin address...", duration: 1200 },
-        { step: "Verifying address security...", duration: 800 },
-        { step: "Finalizing setup...", duration: 500 },
-      ];
-
-      let currentStep = 0;
-      let currentProgress = 0;
-
-      const processSteps = () => {
-        if (currentStep < steps.length) {
-          setLoadingStep(steps[currentStep].step);
-
-          const stepDuration = steps[currentStep].duration;
-          const progressIncrement = 100 / steps.length / (stepDuration / 50);
-
-          const progressInterval = setInterval(() => {
-            currentProgress += progressIncrement;
-            setLoadingProgress(Math.min(currentProgress, (currentStep + 1) * (100 / steps.length)));
-          }, 50);
-
-          setTimeout(() => {
-            clearInterval(progressInterval);
-            currentStep++;
-            if (currentStep < steps.length) {
-              processSteps();
-            } else {
-              setLoadingProgress(100);
-              setTimeout(() => {
-                setShowLoadingModal(false);
-              }, 500);
-            }
-          }, stepDuration);
-        }
-      };
-
-      processSteps();
+    if (!user) {
+      generateBitcoinAddress();
+    } else {
+      setBitcoinAddress(user.bitcoin_address);
     }
-  }, [showLoadingModal]);
+  }, [user]);
 
   const sidebarItems = [
     { id: "assets", icon: Wallet, label: "ASSETS", active: true },
     { id: "activity", icon: Activity, label: "ACTIVITY" },
-    { id: "explore", icon: Compass, label: "EXPLORE" },
-    { id: "rewards", icon: Gift, label: "REWARDS" },
     { id: "settings", icon: Settings, label: "SETTINGS" },
+    { id: "logout", icon: LogOut, label: "LOGOUT", onClick: () => setLogoutModal(true) },
   ];
 
   const tokens = [
@@ -115,16 +79,6 @@ export default function DashboardAssets() {
       icon: Globe,
       color: "bg-purple-500",
       change: "+2.1%",
-    },
-    {
-      symbol: "USDC",
-      name: "USD Coin",
-      network: "Internet Computer • Ethereum",
-      balance: "500.00",
-      value: "$500.00",
-      icon: DollarSign,
-      color: "bg-blue-500",
-      change: "0.0%",
     },
   ];
 
@@ -192,6 +146,17 @@ export default function DashboardAssets() {
     setSidebarOpen(!sidebarOpen);
   };
 
+  const generateBitcoinAddress = async () => {
+    setShowLoadingModal(true);
+    const principal = identity.getPrincipal();
+    const bitcoinResponse = await bitcoin.get_p2pkh_address_for(principal);
+    const backendResponse = await backend.create_user(bitcoinResponse);
+    // const
+    setShowLoadingModal(false);
+
+    console.log("response", backendResponse);
+  };
+
   return (
     <div className="min-h-screen bg-yellow-300 flex relative">
       {/* Mobile Backdrop */}
@@ -214,11 +179,14 @@ export default function DashboardAssets() {
               {sidebarItems.map((item, index) => (
                 <motion.button
                   key={item.id}
-                  className={`w-full flex items-center gap-3 md:gap-4 p-3 md:p-4 border-4 border-white font-black text-left transition-all transform hover:scale-105 ${item.id === activeTab ? "bg-red-500 text-white rotate-1 shadow-[6px_6px_0px_0px_#ffffff]" : "bg-white text-black hover:bg-gray-100 -rotate-1 hover:rotate-0"}`}
-                  onClick={() => {
-                    setActiveTab(item.id);
-                    if (isMobile) setSidebarOpen(false);
-                  }}
+                  className={`w-full flex items-center gap-3 md:gap-4 p-3 md:p-4 border-4 border-white font-black text-left transition-all transform hover:scale-105 ${item.id === activeTab ? "bg-red-500 text-white rotate-1 shadow-[6px_6px_0px_0px_#ffffff]" : `${item.color ?? "bg-white text-black hover:bg-gray-100"} -rotate-1 hover:rotate-0`}`}
+                  onClick={
+                    item.onClick ||
+                    (() => {
+                      setActiveTab(item.id);
+                      if (isMobile) setSidebarOpen(false);
+                    })
+                  }
                   initial={{ x: -50, opacity: 0 }}
                   animate={{ x: 0, opacity: 1 }}
                   transition={{ duration: 0.6, delay: 0.3 + index * 0.1 }}
@@ -229,15 +197,6 @@ export default function DashboardAssets() {
                 </motion.button>
               ))}
             </nav>
-
-            {/* AI Security Badge */}
-            <motion.div className="absolute bottom-4 md:bottom-6 left-4 md:left-6 right-4 md:right-6" initial={{ y: 50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.8, delay: 1 }}>
-              <div className="bg-green-500 border-4 border-white p-3 md:p-4 text-center transform rotate-2">
-                <div className="text-xl md:text-2xl mb-2">🛡️</div>
-                <p className="text-white font-black text-xs md:text-sm">AI SECURITY</p>
-                <p className="text-white font-bold text-xs">ACTIVE</p>
-              </div>
-            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -257,29 +216,18 @@ export default function DashboardAssets() {
               <p className="text-sm md:text-lg font-bold text-black">Secure Bitcoin wallet powered by AI</p>
             </div>
           </div>
-
-          <motion.button className="bg-white border-4 border-black p-2 md:p-3 hover:bg-gray-100 transform hover:scale-105 transition-all" whileHover={{ rotate: 5 }} whileTap={{ scale: 0.95 }}>
-            <Search className="h-5 w-5 md:h-6 md:w-6 text-black" />
-          </motion.button>
         </motion.div>
 
         {/* Balance Card */}
         <motion.div className="bg-red-500 border-4 md:border-8 border-black p-4 md:p-8 mb-6 md:mb-8 transform -rotate-1 shadow-[8px_8px_0px_0px_#000000] md:shadow-[16px_16px_0px_0px_#000000]" initial={{ scale: 0, rotate: -10 }} animate={{ scale: 1, rotate: -1 }} transition={{ duration: 0.8, delay: 0.7 }} whileHover={{ rotate: 1, scale: 1.02 }}>
           <div className="text-center">
-            <motion.div className="text-4xl md:text-6xl lg:text-8xl font-black text-white mb-3 md:mb-4" initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ duration: 0.8, delay: 1 }}>
-              $2,639.04
+            <motion.div className="text-4xl md:text-3xl lg:text-8xl font-black text-white mb-3 md:mb-4" initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ duration: 0.8, delay: 1 }}>
+              0.1212 <span className="text-lg">BTC</span>
             </motion.div>
 
             <motion.p className="text-lg md:text-xl font-bold text-white mb-6 md:mb-8" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.6, delay: 1.2 }}>
               TOTAL PORTFOLIO VALUE
             </motion.p>
-
-            <motion.div className="bg-green-500 border-4 border-white px-3 md:px-4 py-2 inline-block transform rotate-2 mb-6 md:mb-8" initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ duration: 0.6, delay: 1.4 }} whileHover={{ rotate: -2, scale: 1.1 }}>
-              <div className="flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 md:h-5 md:w-5 text-white" />
-                <span className="text-white font-black text-sm md:text-base">+7.8% TODAY</span>
-              </div>
-            </motion.div>
 
             {/* Action Buttons */}
             <motion.div className="flex flex-col sm:flex-row gap-3 md:gap-4 justify-center" initial={{ y: 50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.8, delay: 1.6 }}>
@@ -296,19 +244,12 @@ export default function DashboardAssets() {
                   SEND
                 </Button>
               </motion.div>
-
-              <motion.div whileHover={{ scale: 1.05, rotate: -1 }} whileTap={{ scale: 0.95 }}>
-                <Button size={isMobile ? "default" : "lg"} className="w-full sm:w-auto bg-green-500 hover:bg-green-600 text-white border-4 border-black font-black text-base md:text-lg px-6 md:px-8 py-3 md:py-4 shadow-[4px_4px_0px_0px_#000000] md:shadow-[6px_6px_0px_0px_#000000] hover:shadow-[2px_2px_0px_0px_#000000] md:hover:shadow-[3px_3px_0px_0px_#000000] transition-all">
-                  <CreditCard className="mr-2 h-5 w-5 md:h-6 md:w-6" />
-                  BUY
-                </Button>
-              </motion.div>
             </motion.div>
           </div>
         </motion.div>
 
         {/* Tokens Section */}
-        <motion.div className="bg-white border-4 md:border-8 border-black p-4 md:p-6 transform rotate-1 shadow-[8px_8px_0px_0px_#000000] md:shadow-[12px_12px_0px_0px_#000000]" initial={{ y: 100, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.8, delay: 1.8 }}>
+        <motion.div className="mb-24 mt-18 bg-white border-4 md:border-8 border-black p-4 md:p-6 transform rotate-1 shadow-[8px_8px_0px_0px_#000000] md:shadow-[12px_12px_0px_0px_#000000]" initial={{ y: 100, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.8, delay: 1.8 }}>
           <div className="flex justify-between items-center mb-4 md:mb-6">
             <h2 className="text-2xl md:text-3xl font-black text-black">YOUR TOKENS</h2>
             <motion.button className="bg-yellow-300 border-4 border-black p-2 hover:bg-yellow-400 transform hover:scale-105 transition-all" whileHover={{ rotate: 180 }} whileTap={{ scale: 0.95 }}>
@@ -343,32 +284,6 @@ export default function DashboardAssets() {
               </motion.div>
             ))}
           </div>
-
-          {/* Add Token Button */}
-          <motion.div className="mt-4 md:mt-6 text-center" initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ duration: 0.6, delay: 2.5 }}>
-            <motion.button className="bg-purple-500 hover:bg-purple-600 text-white border-4 border-black font-black text-base md:text-lg px-6 md:px-8 py-3 md:py-4 transform hover:scale-105 transition-all shadow-[4px_4px_0px_0px_#000000] md:shadow-[6px_6px_0px_0px_#000000] hover:shadow-[2px_2px_0px_0px_#000000] md:hover:shadow-[3px_3px_0px_0px_#000000]" whileHover={{ rotate: 2 }} whileTap={{ scale: 0.95 }}>
-              + ADD MORE TOKENS
-            </motion.button>
-          </motion.div>
-        </motion.div>
-
-        {/* AI Security Status */}
-        <motion.div className="mt-6 md:mt-8 bg-black border-4 md:border-8 border-yellow-300 p-4 md:p-6 transform -rotate-1" initial={{ y: 100, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.8, delay: 2.7 }}>
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-3 md:gap-4">
-              <motion.div className="bg-green-500 border-4 border-white p-2 md:p-3 rounded-full" animate={{ scale: [1, 1.1, 1] }} transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY }}>
-                <Zap className="h-6 w-6 md:h-8 md:w-8 text-white" />
-              </motion.div>
-              <div>
-                <h3 className="text-xl md:text-2xl font-black text-white">AI SECURITY ACTIVE</h3>
-                <p className="text-white font-bold text-sm md:text-base">All transactions are being monitored for safety</p>
-              </div>
-            </div>
-
-            <motion.div className="bg-green-500 border-4 border-white px-3 md:px-4 py-2 transform rotate-2" whileHover={{ rotate: -2, scale: 1.1 }}>
-              <span className="text-white font-black text-sm md:text-base">PROTECTED</span>
-            </motion.div>
-          </div>
         </motion.div>
 
         {/* Loading Modal - First Time Setup */}
@@ -393,13 +308,9 @@ export default function DashboardAssets() {
                   🔐
                 </motion.div>
 
-                <p className="text-yellow-300 font-black text-sm md:text-base mb-2">{loadingStep}</p>
+                <p className="text-yellow-300 font-black text-sm md:text-base mb-2">Generating Bitcoin Address...</p>
 
-                {/* Progress Bar */}
-                <div className="bg-gray-700 border-2 border-white h-4 mb-2">
-                  <motion.div className="bg-green-500 h-full border-r-2 border-white" initial={{ width: "0%" }} animate={{ width: `${loadingProgress}%` }} transition={{ duration: 0.3 }} />
-                </div>
-                <p className="text-white font-bold text-xs">{Math.round(loadingProgress)}% Complete</p>
+                <p className="text-white font-bold text-xs">Please wait while we generate your Bitcoin address</p>
               </motion.div>
 
               {/* Warning Notice */}
@@ -553,24 +464,11 @@ export default function DashboardAssets() {
                   SHARE
                 </motion.button>
               </div>
-
-              {/* Security Notice */}
-              <motion.div className="mt-4 md:mt-6 bg-green-500 border-4 border-black p-3 md:p-4 transform rotate-1" initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 1 }}>
-                <div className="flex items-center gap-2 md:gap-3">
-                  <div className="bg-white border-2 border-black p-1 md:p-2 rounded-full">
-                    <motion.div animate={{ rotate: 360 }} transition={{ duration: 3, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}>
-                      🛡️
-                    </motion.div>
-                  </div>
-                  <div>
-                    <p className="text-white font-black text-xs md:text-sm">AI SECURITY ACTIVE</p>
-                    <p className="text-white font-bold text-xs">All incoming transactions monitored</p>
-                  </div>
-                </div>
-              </motion.div>
             </motion.div>
           </motion.div>
         )}
+
+        <LogoutModal isOpen={logoutModal} onClose={() => setLogoutModal(false)} onConfirm={logout} />
       </div>
     </div>
   );

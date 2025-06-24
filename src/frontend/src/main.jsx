@@ -1,4 +1,4 @@
-import { StrictMode, useEffect } from "react";
+import { StrictMode, useEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import "./core/style/global.css";
 import NProgress from "nprogress";
@@ -59,6 +59,21 @@ function NProgressRouter() {
 
   return null;
 }
+
+// function MusicPlayer() {
+//   const audioRef = useRef(null);
+
+//   useEffect(() => {
+//     const playMusic = () => {
+//       audioRef.current?.play().catch((err) => console.warn("Autoplay blocked", err));
+//     };
+
+//     window.addEventListener("click", playMusic, { once: true });
+//     return () => window.removeEventListener("click", playMusic);
+//   }, []);
+
+//   return <audio ref={audioRef} src="/music/theme.mp3" loop />;
+// }
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>

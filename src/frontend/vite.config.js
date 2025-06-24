@@ -26,11 +26,6 @@ export default defineConfig({
       },
     },
   },
-  build: {
-    rollupOptions: {
-      external: ["@dfinity/agent"],
-    },
-  },
   resolve: {
     alias: [
       {

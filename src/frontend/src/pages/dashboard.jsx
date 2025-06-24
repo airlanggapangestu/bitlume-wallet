@@ -8,6 +8,8 @@ import { useAuth } from "@/core/providers/auth-provider";
 import { bitcoin } from "declarations/bitcoin";
 import { backend } from "declarations/backend";
 import LogoutModal from "./components/modals/logout-modal";
+import { convertBTCtoSatoshi, getBitcoinBalance } from "../core/lib/utils";
+import SendModal from "./components/modals/send-modal";
 
 export default function DashboardAssets() {
   const { user, identity, logout } = useAuth();
@@ -19,15 +21,15 @@ export default function DashboardAssets() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
-  const [sendAddress, setSendAddress] = useState("");
-  const [sendAmount, setSendAmount] = useState("");
-  const [analysisState, setAnalysisState] = useState("idle"); // idle, analyzing, safe, unsafe
-  const [sendState, setSendState] = useState("idle"); // idle, sending, sent
-  const [analysisResult, setAnalysisResult] = useState(null);
   const [bitcoinAddress, setBitcoinAddress] = useState(null);
+  const [bitcoinBalance, setBitcoinBalance] = useState(null);
   const [logoutModal, setLogoutModal] = useState(false);
+  const [isBalanceLoading, setisBalanceLoading] = useState(true);
 
   const [showLoadingModal, setShowLoadingModal] = useState(false);
+
+  // BTC SEND
+  const [sendState, setSendState] = useState("idle"); // idle, sending, sent
 
   useEffect(() => {
     const checkMobile = () => {
@@ -52,6 +54,19 @@ export default function DashboardAssets() {
     }
   }, [user]);
 
+  useEffect(() => {
+    async function fetchBitcoinBalance(bitcoinAddress) {
+      setisBalanceLoading(true);
+      const response = await getBitcoinBalance(bitcoinAddress);
+      setisBalanceLoading(false);
+      setBitcoinBalance(response);
+    }
+
+    if (bitcoinAddress) {
+      fetchBitcoinBalance(bitcoinAddress);
+    }
+  }, [bitcoinAddress]);
+
   const sidebarItems = [
     { id: "assets", icon: Wallet, label: "ASSETS", active: true },
     { id: "activity", icon: Activity, label: "ACTIVITY" },
@@ -63,12 +78,10 @@ export default function DashboardAssets() {
     {
       symbol: "BTC",
       name: "Bitcoin",
-      network: "Bitcoin • Internet Computer",
-      balance: "0.00234567",
-      value: "$1,247.89",
+      network: "Bitcoin",
+      balance: bitcoinBalance,
       icon: Bitcoin,
       color: "bg-orange-500",
-      change: "+5.2%",
     },
     {
       symbol: "ICP",
@@ -92,56 +105,6 @@ export default function DashboardAssets() {
     }
   };
 
-  const analyzeAddress = async () => {
-    setAnalysisState("analyzing");
-
-    // Simulate AI analysis - replace with actual API call
-    await new Promise((resolve) => setTimeout(resolve, 3000));
-
-    // Simulate random result for demo - replace with actual analysis
-    const isSafe = Math.random() > 0.3; // 70% chance of being safe
-
-    if (isSafe) {
-      setAnalysisState("safe");
-      setAnalysisResult({
-        status: "safe",
-        confidence: "98%",
-        message: "Address appears clean with no suspicious activity detected.",
-      });
-    } else {
-      setAnalysisState("unsafe");
-      setAnalysisResult({
-        status: "unsafe",
-        confidence: "95%",
-        message: "WARNING: This address has been linked to suspicious activities including fraud and money laundering.",
-        risks: ["Linked to known scam addresses", "High-risk transaction patterns", "Flagged by security databases"],
-      });
-    }
-  };
-
-  const sendBitcoin = async () => {
-    setSendState("sending");
-
-    // Simulate sending transaction
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-
-    setSendState("sent");
-
-    // Reset after showing success
-    setTimeout(() => {
-      closeSendModal();
-    }, 3000);
-  };
-
-  const closeSendModal = () => {
-    setShowSendModal(false);
-    setSendAddress("");
-    setSendAmount("");
-    setAnalysisState("idle");
-    setSendState("idle");
-    setAnalysisResult(null);
-  };
-
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
   };
@@ -153,8 +116,19 @@ export default function DashboardAssets() {
     const backendResponse = await backend.create_user(bitcoinResponse);
     // const
     setShowLoadingModal(false);
+  };
 
-    console.log("response", backendResponse);
+  // BTC SEND
+  const handleSend = async (address, amount) => {
+    setSendState("sending");
+    const bitcoinResponse = await bitcoin.send_from_p2pkh_address({
+      destination_address: address,
+      amount_in_satoshi: convertBTCtoSatoshi(amount),
+    });
+    setSendState("sent");
+
+    console.log("rr", bitcoinResponse);
+    // console.log("object", amount, address);
   };
 
   return (
@@ -168,9 +142,12 @@ export default function DashboardAssets() {
           <motion.div className={`${isMobile ? "fixed" : "relative"} w-80 bg-black border-r-8 border-black p-4 md:p-6 z-50 h-full md:h-auto`} initial={isMobile ? { x: -320 } : { x: -100, opacity: 0 }} animate={isMobile ? { x: 0 } : { x: 0, opacity: 1 }} exit={isMobile ? { x: -320 } : { x: -100, opacity: 0 }} transition={{ duration: 0.3, ease: "easeInOut" }}>
             {/* Logo */}
             <motion.div className="mb-8 md:mb-12" initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ duration: 0.6, delay: 0.2 }}>
-              <div className="bg-yellow-300 border-4 border-white p-3 md:p-4 transform -rotate-2">
-                <h1 className="text-xl md:text-2xl font-black text-black">BITLUME</h1>
-                <p className="text-xs md:text-sm font-bold text-black">WALLET</p>
+              <div className="bg-yellow-300 border-4 border-white p-3 md:p-4 transform -rotate-2 flex items-center gap-3">
+                <img src="/images/logo.png" alt="Logo" className="h-10 w-10 md:h-12 md:w-12 object-contain" />
+                <div>
+                  <h1 className="text-xl md:text-2xl font-black text-black">BITLUME</h1>
+                  <p className="text-xs md:text-sm font-bold text-black">WALLET</p>
+                </div>
               </div>
             </motion.div>
 
@@ -221,13 +198,25 @@ export default function DashboardAssets() {
         {/* Balance Card */}
         <motion.div className="bg-red-500 border-4 md:border-8 border-black p-4 md:p-8 mb-6 md:mb-8 transform -rotate-1 shadow-[8px_8px_0px_0px_#000000] md:shadow-[16px_16px_0px_0px_#000000]" initial={{ scale: 0, rotate: -10 }} animate={{ scale: 1, rotate: -1 }} transition={{ duration: 0.8, delay: 0.7 }} whileHover={{ rotate: 1, scale: 1.02 }}>
           <div className="text-center">
-            <motion.div className="text-4xl md:text-3xl lg:text-8xl font-black text-white mb-3 md:mb-4" initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ duration: 0.8, delay: 1 }}>
-              0.1212 <span className="text-lg">BTC</span>
-            </motion.div>
-
-            <motion.p className="text-lg md:text-xl font-bold text-white mb-6 md:mb-8" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.6, delay: 1.2 }}>
-              TOTAL PORTFOLIO VALUE
-            </motion.p>
+            {isBalanceLoading ? (
+              <motion.div className="flex flex-col items-center justify-center min-h-[120px]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
+                <motion.div animate={{ rotate: 360 }} transition={{ duration: 1.2, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}>
+                  <Loader2 className="h-16 w-16 text-yellow-300 mb-4" />
+                </motion.div>
+                <motion.p className="text-lg md:text-xl font-bold text-white mb-6 md:mb-8" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.6, delay: 1.2 }}>
+                  LOADING BITCOIN BALANCE
+                </motion.p>
+              </motion.div>
+            ) : (
+              <>
+                <motion.div className="text-4xl md:text-3xl lg:text-8xl font-black text-white mb-3 md:mb-4" initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ duration: 0.8, delay: 1 }}>
+                  {bitcoinBalance} <span className="text-lg">BTC</span>
+                </motion.div>
+                <motion.p className="text-lg md:text-xl font-bold text-white mb-6 md:mb-8" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.6, delay: 1.2 }}>
+                  TOTAL PORTFOLIO VALUE
+                </motion.p>
+              </>
+            )}
 
             {/* Action Buttons */}
             <motion.div className="flex flex-col sm:flex-row gap-3 md:gap-4 justify-center" initial={{ y: 50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.8, delay: 1.6 }}>
@@ -268,9 +257,6 @@ export default function DashboardAssets() {
                   <div>
                     <div className="flex items-center gap-2 md:gap-3 mb-1">
                       <h3 className="text-xl md:text-2xl font-black text-white">{token.symbol}</h3>
-                      <motion.div className="bg-black text-green-300 px-2 py-1 text-xs font-black border-2 border-white" whileHover={{ scale: 1.1 }}>
-                        {token.change}
-                      </motion.div>
                     </div>
                     <p className="text-white font-bold text-sm md:text-base">{token.name}</p>
                     <p className="text-white/80 font-bold text-xs md:text-sm">{token.network}</p>
@@ -329,86 +315,7 @@ export default function DashboardAssets() {
           </motion.div>
         )}
 
-        {/* Send Modal */}
-        {showSendModal && (
-          <motion.div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={closeSendModal}>
-            <motion.div className="bg-blue-500 border-4 border-black p-4 md:p-6 max-w-md w-full transform rotate-1" initial={{ scale: 0, rotate: 10 }} animate={{ scale: 1, rotate: 1 }} exit={{ scale: 0, rotate: 10 }} onClick={(e) => e.stopPropagation()}>
-              {/* Modal Header */}
-              <div className="flex justify-between items-center mb-4 md:mb-6">
-                <h2 className="text-2xl md:text-3xl font-black text-white">SEND BTC</h2>
-                <motion.button className="bg-red-500 border-4 border-black p-2 hover:bg-red-600 transform hover:scale-110 transition-all" onClick={closeSendModal} whileHover={{ rotate: 90 }} whileTap={{ scale: 0.9 }}>
-                  <X className="h-5 w-5 md:h-6 md:w-6 text-white" />
-                </motion.button>
-              </div>
-
-              {/* Send Form */}
-              <motion.div className="bg-white border-4 border-black p-4 md:p-6 mb-4 md:mb-6 transform rotate-1" initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.2 }}>
-                <div className="flex flex-col gap-3 md:gap-4">
-                  <label className="text-black font-bold text-sm md:text-base">Recipient Address:</label>
-                  <input type="text" value={sendAddress} onChange={(e) => setSendAddress(e.target.value)} className="bg-gray-100 border-2 border-gray-300 p-2 md:p-3 text-black font-bold text-sm md:text-base" />
-                </div>
-
-                <div className="flex flex-col gap-3 md:gap-4 mt-4 md:mt-6">
-                  <label className="text-black font-bold text-sm md:text-base">Amount:</label>
-                  <input type="number" value={sendAmount} onChange={(e) => setSendAmount(e.target.value)} className="bg-gray-100 border-2 border-gray-300 p-2 md:p-3 text-black font-bold text-sm md:text-base" />
-                </div>
-
-                <motion.button className="bg-green-500 hover:bg-green-600 text-white border-4 border-black font-black text-base md:text-lg px-3 md:px-4 py-2 md:py-3 transform hover:scale-105 transition-all shadow-[3px_3px_0px_0px_#000000] md:shadow-[4px_4px_0px_0px_#000000] hover:shadow-[1px_1px_0px_0px_#000000] md:hover:shadow-[2px_2px_0px_0px_#000000]" onClick={analyzeAddress} whileHover={{ rotate: 1 }} whileTap={{ scale: 0.95 }} initial={{ y: 50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.6 }}>
-                  <Send className="mr-2 h-4 w-4 md:h-5 md:w-5" />
-                  ANALYZE
-                </motion.button>
-              </motion.div>
-
-              {/* Analysis Results */}
-              {analysisState ? (
-                analysisState === "safe" ? (
-                  // Safe Result
-                  <motion.div className="bg-green-500 border-4 border-black p-4 md:p-6 mb-4 md:mb-6 transform -rotate-1" animate={{ rotate: [-1, 1, -1] }} transition={{ duration: 3, repeat: Number.POSITIVE_INFINITY }}>
-                    <div className="flex items-center gap-3 md:gap-4 mb-3 md:mb-4">
-                      <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY }}>
-                        <CheckCircle2 className="h-10 w-10 md:h-12 md:w-12 text-white" />
-                      </motion.div>
-                      <div>
-                        <h3 className="text-xl md:text-2xl font-black text-white">ADDRESS IS SAFE</h3>
-                        <p className="text-white font-bold text-sm md:text-base">Confidence: {analysisResult?.confidence}</p>
-                      </div>
-                    </div>
-                    <p className="text-white font-bold text-xs md:text-sm">{analysisResult?.message}</p>
-                  </motion.div>
-                ) : (
-                  // Unsafe Result
-                  <motion.div className="bg-red-500 border-4 border-black p-4 md:p-6 mb-4 md:mb-6 transform rotate-1" animate={{ rotate: [1, -1, 1] }} transition={{ duration: 1, repeat: Number.POSITIVE_INFINITY }}>
-                    <div className="flex items-center gap-3 md:gap-4 mb-3 md:mb-4">
-                      <motion.div animate={{ scale: [1, 1.3, 1] }} transition={{ duration: 1, repeat: Number.POSITIVE_INFINITY }}>
-                        <AlertTriangle className="h-10 w-10 md:h-12 md:w-12 text-white" />
-                      </motion.div>
-                      <div>
-                        <h3 className="text-xl md:text-2xl font-black text-white">⚠️ DANGER!</h3>
-                        <p className="text-white font-bold text-sm md:text-base">Confidence: {analysisResult?.confidence}</p>
-                      </div>
-                    </div>
-                    <p className="text-white font-bold text-xs md:text-sm mb-3 md:mb-4">{analysisResult?.message}</p>
-                    {analysisResult?.risks && (
-                      <div className="bg-black border-2 border-white p-2 md:p-3">
-                        <p className="text-red-300 font-black text-xs mb-2">DETECTED RISKS:</p>
-                        {analysisResult.risks.map((risk, i) => (
-                          <p key={i} className="text-white font-bold text-xs">
-                            • {risk}
-                          </p>
-                        ))}
-                      </div>
-                    )}
-                  </motion.div>
-                )
-              ) : (
-                <div className="text-center p-4">
-                  <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-                  <p>Analyzing transaction...</p>
-                </div>
-              )}
-            </motion.div>
-          </motion.div>
-        )}
+        <SendModal isOpen={showSendModal} onClose={() => setShowSendModal(false)} onSend={handleSend} sendState={sendState} setSendState={setSendState} />
 
         {/* Receive Modal */}
         {showReceiveModal && (

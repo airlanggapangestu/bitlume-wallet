@@ -78,8 +78,11 @@ actor class BasicBitcoin(network : Types.Network) {
 
   /// Sends the given amount of bitcoin from this canister to the given address.
   /// Returns the transaction ID.
-  public func send_from_p2pkh_address(request : SendRequest) : async TransactionId {
-    Utils.bytesToText(await P2pkh.send(ecdsa_canister_actor, NETWORK, p2pkhDerivationPath(), KEY_NAME, request.destination_address, request.amount_in_satoshi));
+  public shared(msg) func send_from_p2pkh_address(request : SendRequest) : async TransactionId {
+    let caller = msg.caller;
+    let path = derivationPathForUser(caller, "p2pkh");
+
+    Utils.bytesToText(await P2pkh.send(ecdsa_canister_actor, NETWORK, path, KEY_NAME, request.destination_address, request.amount_in_satoshi));
   };
 
   public func get_p2tr_key_only_address() : async BitcoinAddress {

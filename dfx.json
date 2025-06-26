@@ -24,6 +24,11 @@
     "bitcoin": {
       "main": "src/bitcoin/src/Main.mo",
       "type": "motoko"
+    },
+    "ransomware_analysis": {
+      "candid": "src/ransomware_analysis/ransomware_analysis.did",
+      "package": "ransomware_analysis",
+      "type": "rust"
     }
   },
   "defaults": {

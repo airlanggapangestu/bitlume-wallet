@@ -1,0 +1,9 @@
+type PredictionFailed = record { message : text };
+type PredictionResult = variant {
+  Success : record { probability : float32; is_illicit : bool };
+  Failure : PredictionFailed;
+};
+service : {
+  greet : (text) -> (text) query;
+  predict_address : (text) -> (PredictionResult);
+}

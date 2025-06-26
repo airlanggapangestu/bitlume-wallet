@@ -3,7 +3,14 @@ use ic_cdk::update;
 use prost::Message;
 use tract_ndarray::Array2;
 use tract_onnx::prelude::*;
+use anyhow::anyhow;
 use getrandom::register_custom_getrandom;
+
+pub fn custom_getrandom(_buf: &mut [u8]) -> Result<(), getrandom::Error> {
+    Err(getrandom::Error::UNSUPPORTED)
+}
+
+register_custom_getrandom!(custom_getrandom);
 
 #[derive(CandidType, Deserialize)]
 struct PredictionFailed {
@@ -18,57 +25,46 @@ enum PredictionResult {
     },
     Failure(PredictionFailed),
 }
-
-// Disables randomness inside the Wasm runtime (required for ONNX on ICP)
-pub fn custom_getrandom(_buf: &mut [u8]) -> Result<(), getrandom::Error> {
-    Err(getrandom::Error::UNSUPPORTED)
-}
-register_custom_getrandom!(custom_getrandom);
-
 // Embedded ONNX model (already converted)
-const MODEL: &'static [u8] = include_bytes!("ransomware_model.onnx");
+const MODEL: &'static [u8] = include_bytes!("analysis_model.onnx");
 
 fn parse_csv_features(csv: &str) -> TractResult<Tensor> {
-  // Parse 66-float CSV into 1x66 matrix
-  let features: Vec<f32> = csv
-      .split(',')
-      .map(|v| v.trim().parse::<f32>())
-      .collect::<Result<Vec<_>, _>>()
-      .map_err(|e| format!("Failed to parse floats: {:?}", e))?;
+    let features: Vec<f32> = csv
+        .split(',')
+        .map(|v| v.trim().parse::<f32>())
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| anyhow!("Failed to parse floats: {:?}", e))?;
 
-  if features.len() != 66 {
-      return Err("Input does not contain exactly 66 features".into());
-  }
+    if features.len() != 66 {
+        return Err(anyhow!("Input does not contain exactly 66 features"));
+    }
 
-  let input = Array2::from_shape_vec((1, 66), features)?;
-  Ok(Tensor::from(input))
+    let input = Array2::from_shape_vec((1, 66), features)?;
+    Ok(Tensor::from(input))
 }
 
 #[update]
 async fn predict_address(csv_features: String) -> PredictionResult {
-    // Load the model once per call (or cache in stable var for efficiency)
     let bytes = bytes::Bytes::from_static(MODEL);
-    let proto = tract_onnx::pb::ModelProto::decode(bytes);
-
-    if let Err(e) = proto {
-        return PredictionResult::Failure(PredictionFailed {
-            message: format!("Failed to decode ONNX model: {}", e),
-        });
-    }
-
-    let proto = proto.unwrap();
-    let model_result = tract_onnx::onnx()
+    let proto = match tract_onnx::pb::ModelProto::decode(bytes) {
+        Ok(p) => p,
+        Err(e) => {
+            return PredictionResult::Failure(PredictionFailed {
+                message: format!("Model decode error: {}", e),
+            });
+        }
+    };
+    let model = match tract_onnx::onnx()
         .model_for_proto_model(&proto)
         .and_then(|m| m.into_optimized())
-        .and_then(|m| m.into_runnable());
-
-    if let Err(e) = model_result {
-        return PredictionResult::Failure(PredictionFailed {
-            message: format!("Failed to prepare model: {}", e),
-        });
-    }
-
-    let model = model_result.unwrap();
+        .and_then(|m| m.into_runnable()) {
+            Ok(m) => m,
+            Err(e) => {
+                return PredictionResult::Failure(PredictionFailed {
+                    message: format!("Model load error: {}", e),
+                });
+            }
+        };
 
     // Parse the 66 features from input
     let input_tensor = match parse_csv_features(&csv_features) {
@@ -105,3 +101,11 @@ async fn predict_address(csv_features: String) -> PredictionResult {
         is_illicit,
     }
 }
+
+#[ic_cdk::query]
+fn greet(name: String) -> String {
+    format!("Hello, {}!", name)
+}
+
+// Enable Candid export
+ic_cdk::export_candid!();
